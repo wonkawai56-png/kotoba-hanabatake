@@ -92,8 +92,31 @@
     margin-top: 16px; height: 86px; border-radius: 16px; position: relative; overflow: hidden;
     background: linear-gradient(#cfeaf7 0 55%, #a8d98c 55% 100%); border: 1px solid var(--line);
   }
-  .flower { position: absolute; bottom: 6px; font-size: 40px; transform-origin: bottom center; animation: bloom .5s cubic-bezier(.2,1.6,.4,1); }
-  @keyframes bloom { from { transform: scale(0) rotate(-20deg); } to { transform: scale(1) rotate(0); } }
+  .flower { position: absolute; bottom: 6px; font-size: 40px; transform-origin: bottom center; animation: bloom .8s cubic-bezier(.2,1.7,.4,1), sway 2.6s ease-in-out .8s infinite alternate; filter: drop-shadow(0 2px 2px rgba(0,0,0,.15)); }
+  @keyframes bloom { 0% { transform: scale(0) rotate(-25deg); } 60% { transform: scale(1.5) rotate(8deg); } 100% { transform: scale(1) rotate(0); } }
+  @keyframes sway { from { transform: rotate(-5deg); } to { transform: rotate(5deg); } }
+  #play .garden { height: 110px; }
+  #mGardenWrap { margin-bottom: 16px; }
+  #mGardenWrap .cap { display: flex; justify-content: space-between; font-size: 14px; color: var(--sub); margin: 0 4px 4px; }
+  #mGardenWrap .cap b { color: var(--accent); }
+  #mGarden { margin-top: 0; height: 120px; }
+  #mGarden .flower { animation: sway 3s ease-in-out infinite alternate; }
+
+  /* きらきら・花ふぶき */
+  .spark { position: fixed; pointer-events: none; z-index: 50; font-size: 20px; animation: spark .8s ease-out forwards; }
+  @keyframes spark { from { transform: translate(-50%,-50%) scale(.3); opacity: 1; } to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.2) rotate(120deg); opacity: 0; } }
+  .pop { position: fixed; pointer-events: none; z-index: 51; font-size: 30px; font-weight: bold; color: var(--accent); text-shadow: 0 2px 0 #fff, 0 0 10px #fff; animation: popup 1s ease-out forwards; }
+  @keyframes popup { 0% { transform: translate(-50%,0) scale(.4); opacity: 0; } 25% { transform: translate(-50%,-14px) scale(1.25); opacity: 1; } 100% { transform: translate(-50%,-70px) scale(1); opacity: 0; } }
+  .petal { position: fixed; top: -50px; pointer-events: none; z-index: 49; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translate(var(--drift), 115vh) rotate(var(--rot)); } }
+  .board.glow { animation: glow .6s ease-out; }
+  @keyframes glow { 0% { box-shadow: 0 0 0 0 rgba(58,157,110,.55); background: #eefaf2; } 100% { box-shadow: 0 0 0 26px rgba(58,157,110,0); background: var(--card); } }
+  #rBanner { font-size: 54px; font-weight: bold; color: var(--accent); letter-spacing: .1em; animation: banner .9s cubic-bezier(.2,1.7,.4,1); text-shadow: 0 3px 0 #ffe2c9; }
+  @keyframes banner { 0% { transform: scale(0) rotate(-12deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+  .st { display: inline-block; color: #e5dccd; }
+  .st.on { color: #f2b01e; animation: starpop .55s cubic-bezier(.2,1.9,.4,1); text-shadow: 0 0 18px rgba(242,176,30,.7); }
+  @keyframes starpop { 0% { transform: scale(0) rotate(-90deg); } 60% { transform: scale(1.7) rotate(10deg); } 100% { transform: scale(1) rotate(0); } }
+  #result .garden { height: 120px; }
 
   /* 結果 */
   .result { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 26px 20px; text-align: center; }
@@ -128,6 +151,10 @@
       コツは1つだけ：左手の人さし指を <b>F</b>、右手の人さし指を <b>J</b> に置いて（小さなでっぱりがあります）、画面の色のとおりの指で打つこと。<br>
       「し」は si でも shi でも、「ん」は nn でも通ります。上から順に進むのがおすすめです。
     </div>
+    <div id="mGardenWrap">
+      <div class="cap"><span>わたしの花畑</span><span id="mGoal"></span></div>
+      <div class="garden" id="mGarden"></div>
+    </div>
     <div class="stages" id="stages"></div>
   </section>
 
@@ -153,6 +180,7 @@
   <!-- 結果 -->
   <section id="result" class="screen">
     <div class="result">
+      <div id="rBanner"></div>
       <h2 id="rTitle"></h2>
       <div class="big stars" id="rStars"></div>
       <div class="garden" id="rGarden"></div>
@@ -352,7 +380,55 @@ function weakStage() {
   return { id: "weak", name: "にがてなキーのれんしゅう", desc: "よくまちがえるキー（" + keys.join("・").toUpperCase() + "）が入ったことばを集めました。", words: pool };
 }
 
+let timers = [];
+function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+function clearTimers() { timers.forEach(clearTimeout); timers = []; document.querySelectorAll(".petal").forEach(e => e.remove()); }
+
+function burst(x, y, n, spread) {
+  const marks = ["✨", "🌸", "⭐", "💮", "✨"];
+  for (let i = 0; i < n; i++) {
+    const s = document.createElement("span"); s.className = "spark"; s.textContent = marks[i % marks.length];
+    const a = Math.random() * Math.PI * 2, d = spread * (0.5 + Math.random() * 0.7);
+    s.style.left = x + "px"; s.style.top = y + "px";
+    s.style.setProperty("--dx", Math.cos(a) * d + "px"); s.style.setProperty("--dy", Math.sin(a) * d + "px");
+    s.style.fontSize = (14 + Math.random() * 14) + "px";
+    document.body.appendChild(s); setTimeout(() => s.remove(), 850);
+  }
+}
+function popText(text, x, y) {
+  const p = document.createElement("div"); p.className = "pop"; p.textContent = text;
+  p.style.left = x + "px"; p.style.top = y + "px";
+  document.body.appendChild(p); setTimeout(() => p.remove(), 1050);
+}
+function confetti(n) {
+  const marks = ["🌸", "🌼", "💮", "🌷", "🌺", "✨"];
+  for (let i = 0; i < n; i++) {
+    const p = document.createElement("span"); p.className = "petal"; p.textContent = marks[i % marks.length];
+    p.style.left = Math.random() * 100 + "vw"; p.style.fontSize = (18 + Math.random() * 20) + "px";
+    p.style.animationDuration = (2.6 + Math.random() * 2.4) + "s"; p.style.animationDelay = Math.random() * 1.5 + "s";
+    p.style.setProperty("--drift", (Math.random() * 160 - 80) + "px"); p.style.setProperty("--rot", (Math.random() * 720 - 360) + "deg");
+    document.body.appendChild(p);
+  }
+}
+const GOALS = [10, 30, 50, 100, 150, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000];
+function renderMyGarden() {
+  const box = $("mGarden"); box.innerHTML = "";
+  const n = Math.min(save.flowers, 90);
+  for (let i = 0; i < n; i++) {
+    const f = document.createElement("div"); f.className = "flower";
+    const h = (i * 7919 + 13) % 1000 / 1000, h2 = (i * 104729 + 7) % 1000 / 1000;
+    f.textContent = FLOWERS[i % FLOWERS.length];
+    f.style.left = (1 + h * 94) + "%"; f.style.bottom = (2 + h2 * 42) + "px";
+    f.style.fontSize = (22 + (1 - h2) * 16) + "px"; f.style.zIndex = Math.round(100 - h2 * 100);
+    f.style.animationDelay = (-h * 3) + "s";
+    box.appendChild(f);
+  }
+  const goal = GOALS.find(g => g > save.flowers);
+  $("mGoal").innerHTML = save.flowers === 0 ? "ことばを打つと、ここに花が咲きます" : goal ? "あと <b>" + (goal - save.flowers) + "</b> 本で " + goal + " 本！" : "花でいっぱいです";
+}
+
 function renderMenu() {
+  clearTimers(); renderMyGarden();
   const box = $("stages"); box.innerHTML = "";
   const list = STAGES.map((s, i) => ({ s, label: "ステージ " + (i + 1) }));
   const ws = weakStage();
@@ -391,6 +467,7 @@ function buildKeyboard() {
 function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
 function start(stage) {
+  clearTimers();
   lastStage = stage;
   const n = Math.min(stage.count || 10, stage.words.length);
   game = { stage, words: shuffle(stage.words).slice(0, n).map(wordOf), wi: 0, run: null, ok: 0, miss: 0, combo: 0, t0: 0, missKeys: {} };
@@ -425,9 +502,11 @@ function plant(box, idx, total) {
   const f = document.createElement("div"); f.className = "flower";
   f.textContent = FLOWERS[Math.floor(Math.random() * FLOWERS.length)];
   f.style.left = (4 + (idx / Math.max(total, 1)) * 90 + Math.random() * 2) + "%";
-  f.style.fontSize = (34 + Math.random() * 12) + "px";
+  f.style.fontSize = (40 + Math.random() * 16) + "px";
   box.appendChild(f);
+  return f;
 }
+const PRAISE = ["さいた！", "いいね！", "きれい！", "その調子！", "やった！", "すてき！"];
 
 // 音
 let actx = null;
@@ -452,8 +531,15 @@ function press(key) {
     const el = document.querySelector('.key[data-k="' + key + '"]');
     if (el) { el.classList.remove("hit"); void el.offsetWidth; el.classList.add("hit"); }
     if (runDone(r)) {
-      plant($("garden"), g.wi, g.words.length);
-      beep(784, 0.12, "sine", 0.06); beep(1047, 0.18, "sine", 0.06, 0.09);
+      const kr = $("kana").getBoundingClientRect();
+      burst(kr.left + kr.width / 2, kr.top + kr.height / 2, 14, 120);
+      popText(PRAISE[Math.floor(Math.random() * PRAISE.length)], kr.left + kr.width / 2, kr.top - 6);
+      const fl = plant($("garden"), g.wi, g.words.length);
+      const fr = fl.getBoundingClientRect();
+      burst(fr.left + fr.width / 2, fr.top + fr.height / 2, 8, 60);
+      const bd = $("board"); bd.classList.remove("glow", "shake"); void bd.offsetWidth; bd.classList.add("glow");
+      beep(784, 0.14, "sine", 0.06); beep(988, 0.14, "sine", 0.06, 0.08); beep(1319, 0.3, "sine", 0.06, 0.16);
+      beep(2637, 0.25, "triangle", 0.02, 0.16);
       g.wi++;
       if (g.wi >= g.words.length) return finish();
       return nextWord();
@@ -462,7 +548,7 @@ function press(key) {
     g.miss++; g.combo = 0;
     if (expected) { g.missKeys[expected] = (g.missKeys[expected] || 0) + 1; }
     beep(200, 0.1, "sine", 0.05);
-    const b = $("board"); b.classList.remove("shake"); void b.offsetWidth; b.classList.add("shake");
+    const b = $("board"); b.classList.remove("shake", "glow"); void b.offsetWidth; b.classList.add("shake");
   }
   draw();
 }
@@ -487,19 +573,51 @@ function finish() {
   persist();
 
   $("rTitle").textContent = g.stage.name + "　花が " + g.words.length + " 本咲きました";
-  $("rStars").innerHTML = starHtml(stars);
-  $("rAcc").textContent = acc + "%";
-  $("rKpm").textContent = kpm;
+  $("rBanner").textContent = g.miss === 0 ? "パーフェクト！" : stars === 3 ? "すばらしい！" : "クリア！";
+  $("rStars").innerHTML = '<span class="st">★</span><span class="st">★</span><span class="st">★</span>';
+  $("rAcc").textContent = "0%";
+  $("rKpm").textContent = "0";
   $("rTime").textContent = Math.round(sec) + "秒";
-  $("rMsg").textContent = msg;
+  $("rMsg").textContent = "";
   const mk = Object.entries(g.missKeys).sort((a, b) => b[1] - a[1]).slice(0, 3);
   $("rWeak").innerHTML = mk.length ? "今回まちがえやすかったキー： " + mk.map(e => "<b>" + e[0] + "</b>（" + FNAME[FINGER[e[0]]] + "）").join("、") : "ノーミス！すばらしい";
   const rg = $("rGarden"); rg.innerHTML = "";
-  for (let i = 0; i < g.words.length; i++) plant(rg, i, g.words.length);
   const idx = STAGES.indexOf(g.stage);
   $("next").style.display = idx >= 0 && idx < STAGES.length - 1 ? "" : "none";
-  beep(523, 0.15, "sine", 0.06); beep(659, 0.15, "sine", 0.06, 0.12); beep(784, 0.15, "sine", 0.06, 0.24); beep(1047, 0.3, "sine", 0.06, 0.36);
+  const rb = $("rBanner"); rb.style.animation = "none"; void rb.offsetWidth; rb.style.animation = "";
   show("result");
+  window.scrollTo(0, 0);
+  // 演出：花が1本ずつ咲く → ★が1つずつ入る → 数字が上がる → 花ふぶき
+  const total = g.words.length, scale = [523, 587, 659, 784, 880, 1047, 1175, 1319, 1568, 1760];
+  beep(523, 0.12, "triangle", 0.06); beep(784, 0.2, "triangle", 0.06, 0.1);
+  for (let i = 0; i < total; i++) later(() => {
+    const f = plant(rg, i, total); const r = f.getBoundingClientRect();
+    burst(r.left + r.width / 2, r.top + r.height / 2, 5, 50);
+    beep(scale[i % scale.length], 0.16, "sine", 0.05);
+  }, 350 + i * 140);
+  const tStars = 350 + total * 140 + 250;
+  const sts = document.querySelectorAll("#rStars .st");
+  for (let i = 0; i < stars; i++) later(() => {
+    sts[i].classList.add("on"); const r = sts[i].getBoundingClientRect();
+    burst(r.left + r.width / 2, r.top + r.height / 2, 10, 90);
+    beep(1047 + i * 262, 0.3, "sine", 0.07); beep(2093 + i * 524, 0.3, "triangle", 0.02);
+  }, tStars + i * 380);
+  later(() => {
+    const t0 = performance.now(), dur = 900;
+    (function tick() {
+      const p = Math.min((performance.now() - t0) / dur, 1), e = 1 - Math.pow(1 - p, 3);
+      $("rAcc").textContent = Math.round(acc * e) + "%"; $("rKpm").textContent = Math.round(kpm * e);
+      if (p < 1 && screen === "result") requestAnimationFrame(tick);
+      else { $("rAcc").textContent = acc + "%"; $("rKpm").textContent = kpm; }
+    })();
+  }, 350);
+  later(() => {
+    $("rMsg").textContent = msg;
+    confetti(stars === 3 ? 60 : stars === 2 ? 36 : 20);
+    [523, 659, 784, 1047, 1319].forEach((f, i) => beep(f, i === 4 ? 0.6 : 0.16, "sine", 0.06, i * 0.11));
+    beep(523, 0.7, "triangle", 0.03, 0.44); beep(784, 0.7, "triangle", 0.03, 0.44);
+  }, tStars + stars * 380 + 150);
+  later(() => document.querySelectorAll(".petal").forEach(e => e.remove()), tStars + stars * 380 + 7000);
 }
 
 document.addEventListener("keydown", e => {
