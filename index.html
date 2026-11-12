@@ -68,6 +68,17 @@
   #combo { position: absolute; right: 18px; top: 14px; font-size: 15px; color: var(--ok); font-weight: bold; min-height: 20px; }
   #ime { display: none; background: #fff1c9; border: 1px solid #f0d58a; border-radius: 12px; padding: 8px 14px; margin-top: 10px; font-size: 15px; }
 
+  /* 変換れんしゅう */
+  #hwrap { display: none; margin-top: 12px; }
+  #play.henkan #hwrap { display: block; }
+  #play.henkan #roma, #play.henkan #kb, #play.henkan #combo { display: none; }
+  #hin { font: inherit; font-size: 30px; width: min(100%, 640px); padding: 10px 16px; text-align: center; border: 3px solid var(--line); border-radius: 14px; outline: none; color: var(--ink); background: #fffdf8; }
+  #hin:focus { border-color: var(--accent); }
+  #hfb { min-height: 30px; margin-top: 8px; font-size: 18px; color: var(--sub); }
+  #hfb .bad { color: #d6453d; background: #ffe3e0; border-radius: 4px; padding: 0 3px; }
+  .grouphead { margin: 22px 4px 10px; font-size: 18px; font-weight: bold; }
+  .grouphead small { font-weight: normal; color: var(--sub); font-size: 14px; margin-left: 8px; }
+
   /* キーボード */
   #kb { margin: 16px auto 0; width: fit-content; user-select: none; }
   #kb.hide { visibility: hidden; height: 0; margin: 0; overflow: hidden; }
@@ -156,6 +167,8 @@
       <div class="garden" id="mGarden"></div>
     </div>
     <div class="stages" id="stages"></div>
+    <div class="grouphead">漢字の変換れんしゅう<small>日本語入力をオンにして打ちます。スペースで変換、Enter で確定。</small></div>
+    <div class="stages" id="hstages"></div>
   </section>
 
   <!-- プレイ -->
@@ -171,6 +184,10 @@
       <div id="kana"></div>
       <div id="roma"></div>
       <div id="hint"></div>
+      <div id="hwrap">
+        <input id="hin" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" lang="ja" placeholder="ここに打ちます">
+        <div id="hfb"></div>
+      </div>
       <div id="ime">キーが反応しないときは、キーボード左下の「英数」キーを1回押してください。</div>
     </div>
     <div id="kb"></div>
@@ -186,7 +203,7 @@
       <div class="garden" id="rGarden"></div>
       <div class="nums">
         <div><div class="v" id="rAcc"></div><div class="l">正確さ</div></div>
-        <div><div class="v" id="rKpm"></div><div class="l">1分あたりの打鍵数</div></div>
+        <div><div class="v" id="rKpm"></div><div class="l" id="rKpmL">1分あたりの打鍵数</div></div>
         <div><div class="v" id="rTime"></div><div class="l">かかった時間</div></div>
       </div>
       <div class="msg" id="rMsg"></div>
@@ -360,7 +377,7 @@ let save = { stages: {}, flowers: 0, miss: {}, sound: true, guide: true };
 try { Object.assign(save, JSON.parse(localStorage.getItem(SAVE_KEY) || "{}")); } catch (e) {}
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 
-let screen = "menu", game = null, lastStage = null;
+let screen = "menu", game = null, lastStage = null, resultAt = 0;
 
 function show(name) {
   screen = name;
@@ -383,6 +400,23 @@ function weakStage() {
   if (pool.length < 5) return null;
   return { id: "weak", name: "にがてなキーのれんしゅう", desc: "よくまちがえるキー（" + keys.join("・").toUpperCase() + "）が入ったことばを集めました。", words: pool };
 }
+
+// 漢字の変換れんしゅう：[お手本, よみ]
+const HSTAGES = [
+  { id: "h1", henkan: true, name: "変換① みじかいことば", desc: "よみを打って、スペースで漢字に変えます。",
+    words: [["会議","かいぎ"],["資料","しりょう"],["確認","かくにん"],["添付","てんぷ"],["日程","にってい"],["担当者","たんとうしゃ"],["連絡","れんらく"],["返信","へんしん"],["報告","ほうこく"],["相談","そうだん"],["検討","けんとう"],["対応","たいおう"],["予定","よてい"],["納期","のうき"],["見積書","みつもりしょ"],["請求書","せいきゅうしょ"],["契約","けいやく"],["出張","しゅっちょう"],["打ち合わせ","うちあわせ"],["締め切り","しめきり"],["取引先","とりひきさき"],["お客様","おきゃくさま"],["議事録","ぎじろく"],["進捗","しんちょく"],["本日","ほんじつ"],["明日","あした"],["来週","らいしゅう"],["今月","こんげつ"],["午前","ごぜん"],["午後","ごご"],["電話","でんわ"],["住所","じゅうしょ"],["名前","なまえ"],["天気","てんき"],["買い物","かいもの"],["晩ごはん","ばんごはん"],["誕生日","たんじょうび"],["旅行","りょこう"],["写真","しゃしん"],["病院","びょういん"]] },
+  { id: "h2", henkan: true, name: "変換② 同じ読みの使い分け", desc: "以上と異常、会うと合う。候補から正しい方を選びます。",
+    words: [["以上です","いじょうです"],["異常なし","いじょうなし"],["回答します","かいとうします"],["解答用紙","かいとうようし"],["それ以外","それいがい"],["意外な結果","いがいなけっか"],["予定を変える","よていをかえる"],["家に帰る","いえにかえる"],["本を返す","ほんをかえす"],["会社に勤める","かいしゃにつとめる"],["司会を務める","しかいをつとめる"],["人に会う","ひとにあう"],["サイズが合う","さいずがあう"],["機会があれば","きかいがあれば"],["機械を動かす","きかいをうごかす"],["時間を計る","じかんをはかる"],["重さを量る","おもさをはかる"],["席を空ける","せきをあける"],["ドアを開ける","どあをあける"],["夜が明ける","よるがあける"],["暑い夏","あついなつ"],["熱いお茶","あついおちゃ"],["厚い本","あついほん"],["早く起きる","はやくおきる"],["速く走る","はやくはしる"],["保証書","ほしょうしょ"],["安全を保障する","あんぜんをほしょうする"],["関心がある","かんしんがある"],["感心する","かんしんする"],["移動する","いどうする"],["人事異動","じんじいどう"],["紙に書く","かみにかく"],["髪を切る","かみをきる"],["橋を渡る","はしをわたる"],["箸を使う","はしをつかう"],["雨が降る","あめがふる"],["飴をなめる","あめをなめる"]] },
+  { id: "h3", henkan: true, name: "変換③ メールの文", desc: "仕事のメールの文を、漢字まじりで打ちます。", count: 6,
+    words: [["いつもお世話になっております","いつもおせわになっております"],["ご連絡ありがとうございます","ごれんらくありがとうございます"],["メールを拝見しました","めーるをはいけんしました"],["資料を添付いたします","しりょうをてんぷいたします"],["ご確認をお願いいたします","ごかくにんをおねがいいたします"],["承知いたしました","しょうちいたしました"],["返信が遅くなり申し訳ございません","へんしんがおそくなりもうしわけございません"],["お手数をおかけします","おてすうをおかけします"],["ご検討のほどお願いいたします","ごけんとうのほどおねがいいたします"],["日程を調整させてください","にっていをちょうせいさせてください"],["明日の会議は午後からです","あしたのかいぎはごごからです"],["後ほどお電話いたします","のちほどおでんわいたします"],["少々お待ちください","しょうしょうおまちください"],["引き続きよろしくお願いいたします","ひきつづきよろしくおねがいいたします"],["ご不明な点があればお知らせください","ごふめいなてんがあればおしらせください"],["お忙しいところ恐れ入ります","おいそがしいところおそれいります"],["取り急ぎご報告まで","とりいそぎごほうこくまで"],["今週中にお送りします","こんしゅうちゅうにおおくりします"],["ご都合はいかがでしょうか","ごつごうはいかがでしょうか"],["お返事をお待ちしております","おへんじをおまちしております"],["本日はありがとうございました","ほんじつはありがとうございました"],["お先に失礼します","おさきにしつれいします"],["確認して折り返します","かくにんしておりかえします"],["来週の打ち合わせの件です","らいしゅうのうちあわせのけんです"],["見積書をお送りください","みつもりしょをおおくりください"],["担当者に確認いたします","たんとうしゃにかくにんいたします"],["今後ともよろしくお願いいたします","こんごともよろしくおねがいいたします"],["ご対応ありがとうございました","ごたいおうありがとうございました"]] }
+];
+function groupOf(s) { return HSTAGES.includes(s) ? HSTAGES : STAGES; }
+// どちらの書き方でも正解にする表記
+const SAME = [[/致し/g, "いたし"], [/下さい/g, "ください"], [/有難う|有り難う/g, "ありがとう"], [/御座い/g, "ござい"], [/宜しく/g, "よろしく"], [/頂/g, "いただ"], [/後程/g, "後ほど"],
+  [/打合せ|打合わせ|打ち合せ/g, "打ち合わせ"], [/締切り|締切|締めきり/g, "締め切り"], [/見積もり書|見積り書/g, "見積書"], [/引続き/g, "引き続き"], [/取急ぎ/g, "取り急ぎ"], [/折返し/g, "折り返し"],
+  [/買物/g, "買い物"], [/晩御飯|晩ご飯/g, "晩ごはん"], [/御客様|お客さま/g, "お客様"], [/御/g, "ご"], [/お返事/g, "ご返事"], [/[、。,.]/g, ""]];
+function norm(s) { s = s.normalize("NFKC").replace(/\s/g, ""); SAME.forEach(([a, b]) => s = s.replace(a, b)); return s; }
+function esc(s) { return s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
 
 let timers = [];
 function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
@@ -433,18 +467,19 @@ function renderMyGarden() {
 
 function renderMenu() {
   clearTimers(); renderMyGarden();
-  const box = $("stages"); box.innerHTML = "";
+  const box = $("stages"); box.innerHTML = ""; $("hstages").innerHTML = "";
   const list = STAGES.map((s, i) => ({ s, label: "ステージ " + (i + 1) }));
   const ws = weakStage();
   if (ws) list.push({ s: ws, label: "おまけ", weak: true });
+  HSTAGES.forEach((s, i) => list.push({ s, label: "変換 " + (i + 1) }));
   list.forEach(({ s, label, weak }) => {
     const rec = save.stages[s.id];
     const b = document.createElement("button");
     b.className = "stage" + (weak ? " weak" : "");
     b.innerHTML = '<div class="no">' + label + '</div><div class="name">' + s.name + '</div><div class="desc">' + s.desc + '</div>' +
-      '<div class="rec"><span class="stars">' + starHtml(rec ? rec.stars : 0) + '</span><span>' + (rec ? "最高 " + rec.kpm + " 打/分" : "まだ") + "</span></div>";
+      '<div class="rec"><span class="stars">' + starHtml(rec ? rec.stars : 0) + '</span><span>' + (rec ? "最高 " + rec.kpm + (s.henkan ? " 字/分" : " 打/分") : "まだ") + "</span></div>";
     b.onclick = () => start(s);
-    box.appendChild(b);
+    (s.henkan ? $("hstages") : box).appendChild(b);
   });
   show("menu");
 }
@@ -475,6 +510,8 @@ function start(stage) {
   lastStage = stage;
   const n = Math.min(stage.count || 10, stage.words.length);
   game = { stage, words: shuffle(stage.words).slice(0, n).map(wordOf), wi: 0, run: null, ok: 0, miss: 0, combo: 0, t0: 0, missKeys: {} };
+  game.henkan = !!stage.henkan; game.missWords = [];
+  $("play").classList.toggle("henkan", game.henkan);
   $("stName").textContent = stage.name;
   $("garden").innerHTML = "";
   $("ime").style.display = "none";
@@ -483,12 +520,22 @@ function start(stage) {
 }
 function nextWord() {
   const w = game.words[game.wi];
+  if (game.henkan) {
+    $("prog").textContent = (game.wi + 1) + " / " + game.words.length;
+    $("disp").textContent = "よみ：" + w.kana;
+    $("kana").textContent = w.disp;
+    $("hint").textContent = "日本語入力をオンにして打ち、スペースで変換、Enter で確定";
+    $("hfb").textContent = "";
+    const h = $("hin"); h.value = ""; setTimeout(() => h.focus(), 0);
+    return;
+  }
   game.run = newRun(w.kana);
   $("disp").textContent = w.disp && w.disp !== w.kana ? w.disp : "";
   $("prog").textContent = (game.wi + 1) + " / " + game.words.length;
   draw();
 }
 function draw() {
+  if (game.henkan) return;
   const r = game.run;
   $("kana").innerHTML = r.chunks.map((c, j) => '<span class="' + (j < r.i ? "done" : j === r.i ? "cur" : "") + '">' + c.kana + "</span>").join("");
   const rem = remaining(r);
@@ -525,6 +572,48 @@ function beep(freq, dur, type, gain, delay) {
   } catch (e) {}
 }
 
+// ことばを1つ打ち終えたとき（ふつうのステージと変換れんしゅうで共通）
+function wordDone() {
+  const g = game;
+  const kr = $("kana").getBoundingClientRect();
+  burst(kr.left + kr.width / 2, kr.top + kr.height / 2, 14, 120);
+  popText(PRAISE[Math.floor(Math.random() * PRAISE.length)], kr.left + kr.width / 2, kr.top - 6);
+  const fl = plant($("garden"), g.wi, g.words.length);
+  const fr = fl.getBoundingClientRect();
+  burst(fr.left + fr.width / 2, fr.top + fr.height / 2, 8, 60);
+  const bd = $("board"); bd.classList.remove("glow", "shake"); void bd.offsetWidth; bd.classList.add("glow");
+  beep(784, 0.14, "sine", 0.06); beep(988, 0.14, "sine", 0.06, 0.08); beep(1319, 0.3, "sine", 0.06, 0.16);
+  beep(2637, 0.25, "triangle", 0.02, 0.16);
+  g.wi++;
+  if (g.wi >= g.words.length) return finish();
+  return nextWord();
+}
+
+// 変換れんしゅうの入力
+const hin = $("hin"); let composing = false;
+function markStart() { if (game && !game.t0) game.t0 = performance.now(); }
+function checkH(enter) {
+  if (screen !== "play" || !game || !game.henkan) return;
+  const w = game.words[game.wi], v = hin.value;
+  if (norm(v) === norm(w.disp)) { game.ok += w.disp.length; game.combo++; return wordDone(); }
+  if (!enter || !v.trim()) return;
+  game.miss++; game.combo = 0;
+  if (!game.missWords.includes(w.disp)) game.missWords.push(w.disp);
+  beep(200, 0.1, "sine", 0.05);
+  const b = $("board"); b.classList.remove("shake", "glow"); void b.offsetWidth; b.classList.add("shake");
+  if (norm(v) === norm(w.kana)) { $("hfb").textContent = "ひらがなのままです。スペースキーで漢字に変えましょう"; return; }
+  let p = 0; while (p < v.length && p < w.disp.length && v[p] === w.disp[p]) p++;
+  let s = 0; while (s < v.length - p && s < w.disp.length - p && v[v.length - 1 - s] === w.disp[w.disp.length - 1 - s]) s++;
+  const mid = v.slice(p, v.length - s);
+  $("hfb").innerHTML = "ここがちがいます： " + esc(v.slice(0, p)) + '<span class="bad">' + (mid ? esc(mid) : "＿") + "</span>" + esc(v.slice(v.length - s));
+}
+hin.addEventListener("compositionstart", () => { composing = true; markStart(); });
+hin.addEventListener("compositionend", () => { composing = false; setTimeout(() => checkH(false), 0); });
+hin.addEventListener("input", () => { markStart(); if (!composing) checkH(false); });
+hin.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); e.stopPropagation(); checkH(true); }
+});
+
 function press(key) {
   const g = game, r = g.run;
   if (!g.t0) g.t0 = performance.now();
@@ -534,20 +623,7 @@ function press(key) {
     beep(660 + Math.min(g.combo, 20) * 12, 0.06, "triangle", 0.05);
     const el = document.querySelector('.key[data-k="' + key + '"]');
     if (el) { el.classList.remove("hit"); void el.offsetWidth; el.classList.add("hit"); }
-    if (runDone(r)) {
-      const kr = $("kana").getBoundingClientRect();
-      burst(kr.left + kr.width / 2, kr.top + kr.height / 2, 14, 120);
-      popText(PRAISE[Math.floor(Math.random() * PRAISE.length)], kr.left + kr.width / 2, kr.top - 6);
-      const fl = plant($("garden"), g.wi, g.words.length);
-      const fr = fl.getBoundingClientRect();
-      burst(fr.left + fr.width / 2, fr.top + fr.height / 2, 8, 60);
-      const bd = $("board"); bd.classList.remove("glow", "shake"); void bd.offsetWidth; bd.classList.add("glow");
-      beep(784, 0.14, "sine", 0.06); beep(988, 0.14, "sine", 0.06, 0.08); beep(1319, 0.3, "sine", 0.06, 0.16);
-      beep(2637, 0.25, "triangle", 0.02, 0.16);
-      g.wi++;
-      if (g.wi >= g.words.length) return finish();
-      return nextWord();
-    }
+    if (runDone(r)) return wordDone();
   } else {
     g.miss++; g.combo = 0;
     if (expected) { g.missKeys[expected] = (g.missKeys[expected] || 0) + 1; }
@@ -560,15 +636,17 @@ function press(key) {
 function finish() {
   const g = game;
   const sec = Math.max((performance.now() - g.t0) / 1000, 1);
-  const acc = Math.round(g.ok / (g.ok + g.miss) * 100);
+  const acc = g.henkan ? Math.round(g.words.length / (g.words.length + g.miss) * 100) : Math.round(g.ok / (g.ok + g.miss) * 100);
+  const unit = g.henkan ? " 字/分" : " 打/分";
+  $("rKpmL").textContent = g.henkan ? "1分あたりの文字数" : "1分あたりの打鍵数";
   const kpm = Math.round(g.ok / sec * 60);
   const stars = acc >= 95 ? 3 : acc >= 85 ? 2 : 1;
   const prev = save.stages[g.stage.id];
   let msg = "";
   if (!prev) msg = "はじめてのクリア！";
-  else if (kpm > prev.kpm) msg = "自己ベスト更新！ 前より " + (kpm - prev.kpm) + " 打/分 速くなりました";
+  else if (kpm > prev.kpm) msg = "自己ベスト更新！ 前より " + (kpm - prev.kpm) + unit + " 速くなりました";
   else if (stars > prev.stars) msg = "★がふえました！";
-  else msg = "最高記録は " + prev.kpm + " 打/分。その調子です";
+  else msg = "最高記録は " + prev.kpm + unit + "。その調子です";
   save.stages[g.stage.id] = { stars: Math.max(stars, prev ? prev.stars : 0), kpm: Math.max(kpm, prev ? prev.kpm : 0) };
   save.flowers += g.words.length;
   // にがてなキー：まちがえたら足し、ノーミスなら少しずつ減らす
@@ -586,8 +664,10 @@ function finish() {
   const mk = Object.entries(g.missKeys).sort((a, b) => b[1] - a[1]).slice(0, 3);
   $("rWeak").innerHTML = mk.length ? "今回まちがえやすかったキー： " + mk.map(e => "<b>" + e[0] + "</b>（" + FNAME[FINGER[e[0]]] + "）").join("、") : "ノーミス！すばらしい";
   const rg = $("rGarden"); rg.innerHTML = "";
-  const idx = STAGES.indexOf(g.stage);
-  $("next").style.display = idx >= 0 && idx < STAGES.length - 1 ? "" : "none";
+  if (g.henkan) $("rWeak").textContent = g.missWords.length ? "もう一度見ておきたいことば： " + g.missWords.join("、") : "ノーミス！すばらしい";
+  const grp = groupOf(g.stage), idx = grp.indexOf(g.stage);
+  $("next").style.display = idx >= 0 && idx < grp.length - 1 ? "" : "none";
+  resultAt = performance.now();
   const rb = $("rBanner"); rb.style.animation = "none"; void rb.offsetWidth; rb.style.animation = "";
   show("result");
   window.scrollTo(0, 0);
@@ -627,6 +707,7 @@ function finish() {
 document.addEventListener("keydown", e => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (screen === "play") {
+    if (game.henkan) { if (e.key === "Escape" && !e.isComposing && e.keyCode !== 229) renderMenu(); return; }
     if (e.key === "Escape") return renderMenu();
     let k = null;
     if (/^Key[A-Z]$/.test(e.code)) k = e.code[3].toLowerCase();
@@ -637,6 +718,7 @@ document.addEventListener("keydown", e => {
     e.preventDefault();
     press(k);
   } else if (screen === "result") {
+    if (e.repeat || e.isComposing || e.keyCode === 229 || performance.now() - resultAt < 600) return;
     if (e.key === "Enter") { e.preventDefault(); start(lastStage); }
     else if (e.key === "Escape") renderMenu();
   }
@@ -644,7 +726,7 @@ document.addEventListener("keydown", e => {
 $("quit").onclick = renderMenu;
 $("back").onclick = renderMenu;
 $("again").onclick = () => start(lastStage);
-$("next").onclick = () => start(STAGES[STAGES.indexOf(lastStage) + 1]);
+$("next").onclick = () => { const grp = groupOf(lastStage); start(grp[grp.indexOf(lastStage) + 1]); };
 $("optGuide").checked = save.guide; $("optSound").checked = save.sound;
 function applyGuide() { $("kb").classList.toggle("hide", !save.guide); }
 $("optGuide").onchange = e => { save.guide = e.target.checked; persist(); applyGuide(); if (screen === "play") draw(); e.target.blur(); };
